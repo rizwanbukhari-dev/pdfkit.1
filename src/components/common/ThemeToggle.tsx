@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sun, Moon, Monitor, Check, Palette, ChevronDown, Sparkles } from 'lucide-react';
+import { Sun, Moon, Monitor, Check, Palette, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { ACCENT_COLORS, ThemeMode, AccentColorId } from '../../types/theme';
 
@@ -201,28 +201,6 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
             </div>
           </div>
 
-          {/* Interactive Live Theme Preview */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-brand-500 shrink-0" />
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  App Preview:
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
-                  Active
-                </span>
-                <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-brand-600 text-white shadow-xs">
-                  Button
-                </span>
-              </div>
-            </div>
-            <p className="mt-1.5 text-[10px] text-center text-slate-400 dark:text-slate-500">
-              Applies instantly across buttons, highlights, tools & badges
-            </p>
-          </div>
         </div>
       )}
     </div>
