@@ -1,0 +1,197 @@
+import React, { useState } from 'react';
+import { UploadArea } from '../tools/UploadArea';
+import { ProcessingState } from '../tools/ProcessingState';
+import { ResultCard } from '../tools/ResultCard';
+import { Button } from '../common/Button';
+import { addPageNumbers } from '../../utils/pdfOps';
+import { ProcessResult } from '../../types';
+import { Binary, AlertCircle, FileText, Check } from 'lucide-react';
+
+export const AddPageNumbersRunner: React.FC = () => {
+  const [file, setFile] = useState<File | null>(null);
+  const [position, setPosition] = useState<
+    'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right'
+  >('bottom-center');
+  const [startNumber, setStartNumber] = useState<number>(1);
+  const [format, setFormat] = useState<'Page {n} of {total}' | 'Page {n}' | '{n}'>('Page {n} of {total}');
+  const [fontSize, setFontSize] = useState<number>(12);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [result, setResult] = useState<ProcessResult | null>(null);
+
+  const handleFileSelected = (files: File[]) => {
+    if (files.length === 0) return;
+    setFile(files[0]);
+    setErrorMessage(null);
+  };
+
+  const handleApply = async () => {
+    if (!file) return;
+
+    try {
+      setStatus('processing');
+      setErrorMessage(null);
+
+      const outBytes = await addPageNumbers(file, {
+        position,
+        startNumber,
+        format,
+        fontSize,
+      });
+
+      const blob = new Blob([outBytes as any], { type: 'application/pdf' });
+      const downloadUrl = URL.createObjectURL(blob);
+
+      setResult({
+        fileName: `${file.name.replace(/\.pdf$/i, '')}_numbered.pdf`,
+        fileSize: blob.size,
+        downloadUrl,
+        blob,
+      });
+      setStatus('success');
+    } catch (err: any) {
+      setStatus('error');
+      setErrorMessage(err.message || 'Failed to add page numbers.');
+    }
+  };
+
+  const handleReset = () => {
+    setFile(null);
+    setStatus('idle');
+    setResult(null);
+    setErrorMessage(null);
+  };
+
+  if (status === 'processing') {
+    return <ProcessingState message="Adding page numbers..." step="Calculating coordinates and embedding font labels" />;
+  }
+
+  if (status === 'success' && result) {
+    return <ResultCard result={result} onReset={handleReset} toolName="Numbered PDF" />;
+  }
+
+  const positionsList: {
+    id: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+    label: string;
+  }[] = [
+    { id: 'top-left', label: 'Top Left' },
+    { id: 'top-center', label: 'Top Center' },
+    { id: 'top-right', label: 'Top Right' },
+    { id: 'bottom-left', label: 'Bottom Left' },
+    { id: 'bottom-center', label: 'Bottom Center' },
+    { id: 'bottom-right', label: 'Bottom Right' },
+  ];
+
+  return (
+    <div className="w-full max-w-2xl mx-auto space-y-8">
+      {!file ? (
+        <UploadArea
+          accept=".pdf,application/pdf"
+          multiple={false}
+          onFilesSelected={handleFileSelected}
+          title="Select a PDF to add page numbers"
+          subtitle="Customize position, format, starting index, and typography"
+        />
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base truncate max-w-xs sm:max-w-md">
+                  {file.name}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Configure page numbers</p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleReset}
+              className="px-3 py-2 text-xs font-semibold rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 transition-colors"
+            >
+              Change File
+            </button>
+          </div>
+
+          {/* Options */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-soft space-y-5">
+            {/* Position Picker */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 font-mono">
+                Number Position
+              </label>
+              <div className="grid grid-cols-3 gap-2.5">
+                {positionsList.map((pos) => (
+                  <button
+                    key={pos.id}
+                    type="button"
+                    onClick={() => setPosition(pos.id)}
+                    className={`p-3 rounded-xl border text-xs font-semibold text-center transition-all ${
+                      position === pos.id
+                        ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 ring-2 ring-brand-500/20'
+                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {pos.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Format & Starting Number */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Number Format
+                </label>
+                <select
+                  value={format}
+                  onChange={(e) => setFormat(e.target.value as any)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="Page {n} of {total}">Page 1 of N</option>
+                  <option value="Page {n}">Page 1</option>
+                  <option value="{n}">1 (Number only)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Start Numbering At
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={startNumber}
+                  onChange={(e) => setStartNumber(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {errorMessage && (
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs sm:text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <Button
+              variant="primary"
+              size="lg"
+              leftIcon={<Binary className="w-5 h-5" />}
+              onClick={handleApply}
+              className="w-full text-base py-4"
+            >
+              Add Page Numbers to PDF
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
