@@ -15,6 +15,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
     <title>PDFKit — Everything You Need to Work With PDFs</title>
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem('pdfkit-theme') || 'system';
+          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          var color = localStorage.getItem('pdfkit-accent-color') || 'indigo';
+          document.documentElement.setAttribute('data-theme-color', color);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
     <div id="root"></div>

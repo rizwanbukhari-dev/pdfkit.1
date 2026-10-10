@@ -93,7 +93,7 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
 
       {/* Popover Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2.5 w-76 sm:w-84 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+        <div className="absolute -right-12 sm:right-0 mt-2.5 w-76 sm:w-84 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
             <div className="flex items-center gap-2">

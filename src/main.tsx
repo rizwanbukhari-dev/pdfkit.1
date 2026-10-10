@@ -16,8 +16,14 @@ createRoot(document.getElementById('root')!).render(
 // Register PWA service worker if supported
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.log('SW registration failed:', err);
-    });
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        // Actively check for updated service worker on every page load
+        registration.update();
+      })
+      .catch((err) => {
+        console.log('SW registration failed:', err);
+      });
   });
 }
