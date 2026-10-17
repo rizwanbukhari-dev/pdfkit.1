@@ -4,6 +4,8 @@ import { Footer } from './components/common/Footer';
 import { FloatingWatermark } from './components/common/FloatingWatermark';
 import { ToolSearchModal } from './components/tools/ToolSearchModal';
 import { ComingSoonModal } from './components/tools/ComingSoonModal';
+import { InstallModal } from './components/common/InstallModal';
+import { usePWAInstall } from './context/PWAInstallContext';
 
 import { HomePage } from './components/views/HomePage';
 import { AllToolsPage } from './components/views/AllToolsPage';
@@ -19,6 +21,8 @@ export function App() {
   const [activeTool, setActiveTool] = useState<ToolDefinition | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [comingSoonTool, setComingSoonTool] = useState<ToolDefinition | null>(null);
+
+  const { isModalOpen, closeInstallModal } = usePWAInstall();
 
   // Parse path on initial load and handle browser back/forward buttons
   useEffect(() => {
@@ -164,6 +168,9 @@ export function App() {
           navigateTo('all-tools');
         }}
       />
+
+      {/* Install App Guide Modal */}
+      <InstallModal isOpen={isModalOpen} onClose={closeInstallModal} />
 
       {/* Floating Stylish Watermark & Separated Social Badges */}
       <FloatingWatermark />

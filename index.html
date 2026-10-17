@@ -3,8 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#4f46e5" />
+    <meta name="application-name" content="PDFKit" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="PDFKit" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="description" content="PDFKit is an online all-in-one PDF utility platform. Merge, split, compress, convert, edit and manage your PDFs securely inside your browser." />
     <meta name="keywords" content="PDF, merge pdf, split pdf, compress pdf, convert pdf, sign pdf, watermark pdf, client-side, free pdf tools" />
     <meta property="og:title" content="PDFKit — Everything You Need to Work With PDFs" />
@@ -31,7 +39,7 @@
       })();
     </script>
   </head>
-  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

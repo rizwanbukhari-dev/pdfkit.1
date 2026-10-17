@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Menu, X, FileText, Sparkles } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { InstallButton } from './InstallButton';
 
 interface HeaderProps {
   currentView: string;
@@ -69,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenS
           </nav>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Search Button */}
             <button
               onClick={onOpenSearch}
@@ -82,6 +83,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenS
                 ⌘K
               </kbd>
             </button>
+
+            {/* Install App Button (Desktop & Tablet) */}
+            <InstallButton variant="header" className="hidden sm:inline-flex" />
 
             {/* Theme Toggle */}
             <ThemeToggle />
@@ -101,6 +105,11 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenS
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4 space-y-2 animate-in slide-in-from-top-3 duration-200 shadow-xl">
+          {/* Prominent Install App Button in Mobile Drawer */}
+          <div className="pb-2">
+            <InstallButton variant="drawer" onInstalled={() => setMobileMenuOpen(false)} />
+          </div>
+
           {navLinks.map((link) => (
             <button
               key={link.view}

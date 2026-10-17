@@ -1,16 +1,48 @@
 {
-  "name": "PDFKit - All-in-One PDF Platform",
+  "name": "PDFKit",
   "short_name": "PDFKit",
-  "description": "Merge, split, compress, convert, edit and manage your PDFs with simple and powerful tools.",
+  "description": "Merge, split, compress, convert, edit and manage your PDFs securely inside your browser.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0f172a",
   "theme_color": "#4f46e5",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/favicon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

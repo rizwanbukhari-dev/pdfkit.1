@@ -1,29 +1,43 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import './index.css';
+import App from './App';
 
-import { ThemeProvider } from './context/ThemeContext'
+import { ThemeProvider } from './context/ThemeContext';
+import { PWAInstallProvider } from './context/PWAInstallContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
-      <App />
+      <PWAInstallProvider>
+        <App />
+      </PWAInstallProvider>
     </ThemeProvider>
   </StrictMode>,
-)
+);
 
-// Register PWA service worker if supported
-if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+// Register PWA service worker if supported in production
+if ('serviceWorker' in navigator && (import.meta.env.PROD || process.env.NODE_ENV === 'production')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
       .then((registration) => {
-        // Actively check for updated service worker on every page load
+        // Actively check for service worker updates
         registration.update();
+
+        registration.onupdatefound = () => {
+          const installingWorker = registration.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[PDFKit SW] New version available.');
+              }
+            };
+          }
+        };
       })
       .catch((err) => {
-        console.log('SW registration failed:', err);
+        console.warn('[PDFKit SW] Registration failed:', err);
       });
   });
 }
