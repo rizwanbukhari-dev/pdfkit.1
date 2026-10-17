@@ -67,8 +67,9 @@ self.addEventListener('fetch', (event) => {
   // 2. Ignore non-http/https protocols (e.g. chrome-extension:, blob:, data:)
   if (!url.protocol.startsWith('http')) return;
 
-  // 3. STRICT PRIVACY GUARD: Never cache PDFs, blobs, downloads, or sensitive files
+  // 3. STRICT PRIVACY & API GUARD: Never intercept or cache API requests, PDFs, blobs, or sensitive files
   if (
+    url.pathname.startsWith('/api/') ||
     url.pathname.endsWith('.pdf') ||
     url.pathname.includes('/download') ||
     url.searchParams.has('download')
