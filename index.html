@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#4f46e5" />
@@ -18,7 +18,16 @@
     <meta property="og:title" content="PDFKit — Everything You Need to Work With PDFs" />
     <meta property="og:description" content="Merge, split, compress, convert, edit and manage your PDFs with simple and powerful tools." />
     <meta property="og:type" content="website" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      // Early capture of beforeinstallprompt before React scripts finish evaluating
+      window.__PDFKIT_INSTALL_EVENT__ = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.__PDFKIT_INSTALL_EVENT__ = e;
+        window.dispatchEvent(new CustomEvent('pdfkit-install-ready'));
+      });
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">

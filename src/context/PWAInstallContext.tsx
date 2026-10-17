@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from 'react';
 
 export interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -9,9 +16,14 @@ export interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+export type InstallationStatus = 'uninstalled' | 'installing' | 'installed';
+
 export interface PWAInstallContextType {
-  canInstall: boolean;
+  isInstallable: boolean;
+  canInstall: boolean; // Alias for isInstallable
   isInstalled: boolean;
+  isStandalone: boolean;
+  installationStatus: InstallationStatus;
   isIOS: boolean;
   isAndroid: boolean;
   isMobile: boolean;
@@ -24,48 +36,79 @@ export interface PWAInstallContextType {
 const PWAInstallContext = createContext<PWAInstallContextType | undefined>(undefined);
 
 export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [canInstall, setCanInstall] = useState<boolean>(false);
-  const [isInstalled, setIsInstalled] = useState<boolean>(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
+    if (typeof window !== 'undefined' && (window as any).__PDFKIT_INSTALL_EVENT__) {
+      return (window as any).__PDFKIT_INSTALL_EVENT__ as BeforeInstallPromptEvent;
+    }
+    return null;
+  });
+
+  const [isIOS] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator.userAgent || '';
+    return (
+      /iPad|iPhone|iPod/.test(ua) ||
+      (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
+    );
+  });
+
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(
+      window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+        document.referrer.includes('android-app://')
+    );
+  });
+
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(
+      window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+        document.referrer.includes('android-app://')
+    );
+  });
+
+  const [installationStatus, setInstallationStatus] = useState<InstallationStatus>(() => {
+    if (typeof window === 'undefined') return 'uninstalled';
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+      document.referrer.includes('android-app://')
+      ? 'installed'
+      : 'uninstalled';
+  });
+
+  const [isInstallable, setIsInstallable] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && (window as any).__PDFKIT_INSTALL_EVENT__) {
+      return true;
+    }
+    return false;
+  });
+
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(deferredPrompt);
 
-  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
-
-  // Keep ref in sync for synchronous access
   useEffect(() => {
     deferredPromptRef.current = deferredPrompt;
   }, [deferredPrompt]);
 
-  // Check device and environment
-  const isIOS = typeof window !== 'undefined' && (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  );
-
   const isAndroid = typeof window !== 'undefined' && /android/i.test(navigator.userAgent);
   const isMobile = isIOS || isAndroid || (typeof window !== 'undefined' && window.innerWidth < 768);
 
-  // Detect standalone mode (already installed app)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const checkInstalled = () => {
-      const isStandaloneMode =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-        document.referrer.includes('android-app://');
-
-      setIsInstalled(Boolean(isStandaloneMode));
-    };
-
-    checkInstalled();
-
+    // Listen to display-mode media query changes
     const mediaQuery = window.matchMedia('(display-mode: standalone)');
     const handleMediaChange = (e: MediaQueryListEvent) => {
-      setIsInstalled(e.matches);
+      setIsStandalone(e.matches);
       if (e.matches) {
-        setCanInstall(false);
+        setIsInstalled(true);
+        setInstallationStatus('installed');
+        setIsInstallable(false);
       }
     };
 
@@ -75,16 +118,71 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       mediaQuery.addListener(handleMediaChange);
     }
 
-    // Listen for the appinstalled event
+    // Capture beforeinstallprompt
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      const installEvent = e as BeforeInstallPromptEvent;
+      (window as any).__PDFKIT_INSTALL_EVENT__ = installEvent;
+      setDeferredPrompt(installEvent);
+      deferredPromptRef.current = installEvent;
+      setIsInstallable(true);
+      setInstallationStatus('uninstalled');
+      console.log('[PDFKit PWA] Captured beforeinstallprompt event.');
+    };
+
+    // App installed event
     const handleAppInstalled = () => {
-      console.log('[PDFKit PWA] App installed successfully');
-      setIsInstalled(true);
-      setCanInstall(false);
+      console.log('[PDFKit PWA] App installed successfully.');
       setDeferredPrompt(null);
+      deferredPromptRef.current = null;
+      (window as any).__PDFKIT_INSTALL_EVENT__ = null;
+      setIsInstallable(false);
+      setIsInstalled(true);
+      setInstallationStatus('installed');
       setIsModalOpen(false);
     };
 
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+
+    // Also listen for early capture custom event from index.html
+    const handleEarlyReady = () => {
+      if ((window as any).__PDFKIT_INSTALL_EVENT__) {
+        handleBeforeInstallPrompt((window as any).__PDFKIT_INSTALL_EVENT__);
+      }
+    };
+    window.addEventListener('pdfkit-install-ready', handleEarlyReady);
+
+    // Check if early capture already happened
+    if ((window as any).__PDFKIT_INSTALL_EVENT__) {
+      handleBeforeInstallPrompt((window as any).__PDFKIT_INSTALL_EVENT__);
+    }
+
+    // Register Service Worker immediately on mount (RizKey proven pattern)
+    if (
+      'serviceWorker' in navigator &&
+      (window.location.protocol === 'https:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1')
+    ) {
+      navigator.serviceWorker
+        .register('/sw.js', { scope: '/' })
+        .then((registration) => {
+          registration.addEventListener('updatefound', () => {
+            const installing = registration.installing;
+            if (installing) {
+              installing.addEventListener('statechange', () => {
+                if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('[PDFKit PWA] New update available.');
+                }
+              });
+            }
+          });
+        })
+        .catch((err) => {
+          console.debug('[PDFKit PWA] Service worker registration note:', err);
+        });
+    }
 
     return () => {
       if (mediaQuery.removeEventListener) {
@@ -92,57 +190,41 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       } else {
         mediaQuery.removeListener(handleMediaChange);
       }
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
-
-  // Listen for beforeinstallprompt event
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleBeforeInstallPrompt = (e: Event) => {
-      // Prevent browser default banner
-      e.preventDefault();
-      const installEvent = e as BeforeInstallPromptEvent;
-      setDeferredPrompt(installEvent);
-      setCanInstall(true);
-      console.log('[PDFKit PWA] Captured beforeinstallprompt event');
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('pdfkit-install-ready', handleEarlyReady);
     };
   }, []);
 
-  // Trigger installation flow
+  // Real installation trigger matching RizKey's working behavior
   const promptInstall = useCallback(async (): Promise<'accepted' | 'dismissed' | 'unsupported'> => {
-    const promptEvent = deferredPromptRef.current;
+    const promptEvent = deferredPromptRef.current || (window as any).__PDFKIT_INSTALL_EVENT__;
 
     if (promptEvent) {
       try {
+        setInstallationStatus('installing');
         await promptEvent.prompt();
         const choice = await promptEvent.userChoice;
-        console.log('[PDFKit PWA] User install choice:', choice.outcome);
+        console.log('[PDFKit PWA] User install choice outcome:', choice.outcome);
 
         if (choice.outcome === 'accepted') {
           setDeferredPrompt(null);
-          setCanInstall(false);
+          deferredPromptRef.current = null;
+          (window as any).__PDFKIT_INSTALL_EVENT__ = null;
+          setIsInstallable(false);
           return 'accepted';
         } else {
-          // User dismissed the prompt - keep prompt available for retry
+          setInstallationStatus('uninstalled');
           return 'dismissed';
         }
       } catch (err) {
-        console.error('[PDFKit PWA] Install prompt error:', err);
-        // Fall back to showing modal guide
+        console.error('[PDFKit PWA] Installation prompt error:', err);
+        setInstallationStatus('uninstalled');
         setIsModalOpen(true);
         return 'unsupported';
       }
     } else {
-      // Prompt not directly triggerable by browser (e.g. iOS Safari, Firefox, or already prompted)
-      // Open guided installation instructions
+      // Prompt not directly available (e.g. iOS Safari, Firefox, or already installed/prompted)
       setIsModalOpen(true);
       return 'unsupported';
     }
@@ -154,8 +236,11 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   return (
     <PWAInstallContext.Provider
       value={{
-        canInstall,
+        isInstallable,
+        canInstall: isInstallable,
         isInstalled,
+        isStandalone,
+        installationStatus,
         isIOS,
         isAndroid,
         isMobile,
