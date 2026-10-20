@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Mail,
   User,
-  MessageSquare,
   ShieldCheck,
   Clock,
   Paperclip,
@@ -20,32 +19,18 @@ import {
 } from 'lucide-react';
 import { DeveloperWatermark } from '../common/DeveloperWatermark';
 import { WhatsAppIcon } from '../common/SocialIcons';
-
-interface FormState {
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  website: string; // Honeypot field for bot spam detection
-}
-
-interface FormErrors {
-  name?: string;
-  email?: string;
-  subject?: string;
-  message?: string;
-  attachment?: string;
-}
-
-const EMAIL_REGEX =
-  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
-
-// Web3Forms attachment limits: Single file upload up to 5 MB on supported plans
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.webp'];
+import {
+  ContactFormData,
+  ContactFormErrors,
+  validateContactForm,
+  validateFile,
+  buildWeb3FormsPayload,
+  parseWeb3FormsError,
+  isAccessKeyConfigured,
+} from '../../utils/contactForm';
 
 export const ContactPage: React.FC = () => {
-  const [formData, setFormData] = useState<FormState>({
+  const [formData, setFormData] = useState<ContactFormData>({
     name: '',
     email: '',
     subject: '',
@@ -57,7 +42,7 @@ export const ContactPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [formErrors, setFormErrors] = useState<ContactFormErrors>({});
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -85,24 +70,9 @@ export const ContactPage: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
 
     // Clear field-specific validation error on change
-    if (formErrors[name as keyof FormErrors]) {
+    if (formErrors[name as keyof ContactFormErrors]) {
       setFormErrors((prev) => ({ ...prev, [name]: undefined }));
     }
-  };
-
-  const validateFile = (file: File): string | null => {
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
-      return `File is too large (${sizeMb} MB). Maximum allowed size is 5 MB.`;
-    }
-
-    const extMatch = file.name.match(/\.[^.]+$/);
-    const ext = extMatch ? extMatch[0].toLowerCase() : '';
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      return `Unsupported file format (${ext || 'unknown'}). Allowed: PDF, DOC, DOCX, TXT, PNG, JPG, WEBP.`;
-    }
-
-    return null;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,47 +140,7 @@ export const ContactPage: React.FC = () => {
     }
   };
 
-  const validateForm = (): boolean => {
-    const errors: FormErrors = {};
-
-    if (!formData.name.trim() || formData.name.trim().length < 2) {
-      errors.name = 'Please enter your name (at least 2 characters).';
-    } else if (formData.name.trim().length > 100) {
-      errors.name = 'Name must not exceed 100 characters.';
-    }
-
-    if (!formData.email.trim()) {
-      errors.email = 'Email address is required.';
-    } else if (!EMAIL_REGEX.test(formData.email.trim())) {
-      errors.email = 'Please enter a valid email address.';
-    } else if (formData.email.trim().length > 254) {
-      errors.email = 'Email address is too long.';
-    }
-
-    if (!formData.subject.trim() || formData.subject.trim().length < 2) {
-      errors.subject = 'Please enter a subject (at least 2 characters).';
-    } else if (formData.subject.trim().length > 150) {
-      errors.subject = 'Subject must not exceed 150 characters.';
-    }
-
-    if (!formData.message.trim() || formData.message.trim().length < 10) {
-      errors.message = 'Please describe your inquiry or feedback (at least 10 characters).';
-    } else if (formData.message.trim().length > 5000) {
-      errors.message = 'Message must not exceed 5000 characters.';
-    }
-
-    if (attachment) {
-      const fileError = validateFile(attachment);
-      if (fileError) {
-        errors.attachment = fileError;
-      }
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     // Prevent duplicate submissions while in progress
@@ -218,14 +148,16 @@ export const ContactPage: React.FC = () => {
       return;
     }
 
-    if (!validateForm()) {
+    const errors = validateContactForm(formData, attachment);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
       return;
     }
 
     // Access key configuration check
     const accessKey = (import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || '').trim();
 
-    if (!accessKey) {
+    if (!isAccessKeyConfigured(accessKey)) {
       setStatus('error');
       setStatusMessage(
         'Web3Forms access key is not configured. Please add VITE_WEB3FORMS_ACCESS_KEY to your .env.local file (for local development) or Vercel Environment Variables (for production).'
@@ -237,40 +169,53 @@ export const ContactPage: React.FC = () => {
     setStatusMessage('');
 
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('access_key', accessKey);
-      formDataToSend.append('name', formData.name.trim());
-      formDataToSend.append('email', formData.email.trim());
-      formDataToSend.append('subject', formData.subject.trim() || 'New Contact Message from PDFKit');
-      formDataToSend.append('message', formData.message.trim());
-      formDataToSend.append('from_name', 'PDFKit Contact Form');
+      // Honeypot spam check - if filled or checked by automated bots, tell Web3Forms to flag
+      const formElement = e.currentTarget;
+      const botCheckbox = formElement?.elements?.namedItem('botcheck') as HTMLInputElement | null;
+      const isBot = Boolean((formData.website && formData.website.trim()) || botCheckbox?.checked);
 
-      // Honeypot spam check - if filled by automated bots, tell Web3Forms to flag
-      if (formData.website) {
-        formDataToSend.append('botcheck', formData.website);
-      }
-
-      // Append optional file attachment if provided
-      if (attachment) {
-        formDataToSend.append('attachment', attachment);
-      }
-
-      const response = await fetch('https://api.web3forms.com/submit', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-        },
-        body: formDataToSend,
+      const formDataToSend = buildWeb3FormsPayload({
+        accessKey,
+        name: formData.name,
+        email: formData.email,
+        subject: formData.subject,
+        message: formData.message,
+        attachment,
+        isBot,
       });
 
-      const result = await response.json().catch(() => null);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+
+      let response: Response;
+      try {
+        response = await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+          },
+          body: formDataToSend,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const result = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
       if (response.ok && result?.success) {
         setStatus('success');
-        setStatusMessage(
-          result.message ||
-            'Your message has been delivered directly to our inbox. We will get back to you soon!'
-        );
+        if (attachment) {
+          setStatusMessage(
+            'Your message has been delivered directly to our inbox! Please note: email attachment delivery requires an active Web3Forms Pro subscription on the recipient account; if using the free tier, the text was delivered but the file attachment may not be included.'
+          );
+        } else {
+          setStatusMessage(
+            (typeof result?.message === 'string' ? result.message : null) ||
+              'Your message has been delivered directly to our inbox. We will get back to you soon!'
+          );
+        }
+
         // Reset form inputs only upon confirmed success
         setFormData({
           name: '',
@@ -286,36 +231,21 @@ export const ContactPage: React.FC = () => {
         setFormErrors({});
       } else {
         setStatus('error');
-        const errorText =
-          result?.message ||
-          result?.error?.message ||
-          (response.status === 403
-            ? 'The Web3Forms access key is invalid or restricted. Please verify your access key.'
-            : `Failed to submit message (HTTP ${response.status}). Please try again or reach out on WhatsApp.`);
-
-        // Detect if attachment caused the failure due to Web3Forms plan restrictions
-        const lowerError = errorText.toLowerCase();
-        if (
-          attachment &&
-          (lowerError.includes('pro') ||
-            lowerError.includes('attachment') ||
-            lowerError.includes('file') ||
-            lowerError.includes('upload') ||
-            lowerError.includes('plan'))
-        ) {
-          setStatusMessage(
-            `${errorText} Note: File attachments require an active Web3Forms Pro subscription. If using the Free plan, remove the attachment and send your message, or include a file share link.`
-          );
-        } else {
-          setStatusMessage(errorText);
-        }
+        const parsedError = parseWeb3FormsError(response.status, result, Boolean(attachment));
+        setStatusMessage(parsedError.message);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[PDFKit Web3Forms Error]', err);
       setStatus('error');
-      setStatusMessage(
-        'A network connection error occurred while submitting your message. Please check your internet connection or use WhatsApp.'
-      );
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setStatusMessage(
+          'The request timed out. Please check your internet connection or reach out directly on WhatsApp.'
+        );
+      } else {
+        setStatusMessage(
+          'A network connection error occurred while submitting your message. Please check your internet connection or use WhatsApp.'
+        );
+      }
     }
   };
 
@@ -398,7 +328,7 @@ export const ContactPage: React.FC = () => {
         </div>
 
         {/* Missing API Key Guidance Banner (Shown when access key is not configured) */}
-        {!import.meta.env.VITE_WEB3FORMS_ACCESS_KEY && (
+        {!isAccessKeyConfigured(import.meta.env.VITE_WEB3FORMS_ACCESS_KEY) && (
           <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
@@ -421,7 +351,7 @@ export const ContactPage: React.FC = () => {
                 <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
                   Message Sent Successfully!
                 </h4>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 leading-relaxed">
                   {statusMessage}
                 </p>
               </div>
@@ -440,16 +370,33 @@ export const ContactPage: React.FC = () => {
 
         {/* Error Alert Banner */}
         {status === 'error' && (
-          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/80 animate-in fade-in duration-200 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-sm font-bold text-rose-900 dark:text-rose-200">
-                Failed to Send Message
-              </h4>
-              <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5">
-                {statusMessage}
-              </p>
+          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/80 animate-in fade-in duration-200 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-bold text-rose-900 dark:text-rose-200">
+                  Failed to Send Message
+                </h4>
+                <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5 leading-relaxed">
+                  {statusMessage}
+                </p>
+              </div>
             </div>
+            {attachment && (
+              <div className="pt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleRemoveAttachment();
+                    setStatus('idle');
+                    setStatusMessage('');
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                >
+                  Remove Attachment &amp; Keep Message
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -673,36 +620,44 @@ export const ContactPage: React.FC = () => {
                     or drag & drop
                   </div>
                   <p id="attachment-hint" className="text-[11px] text-slate-500 dark:text-slate-400">
-                    PDF, DOC, DOCX, TXT, PNG, or JPG (up to 5 MB)
+                    PDF, DOC, DOCX, TXT, PNG, JPG, JPEG, or WEBP (up to 5 MB)
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
-                    <FileText className="w-4 h-4" />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                        {attachment.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                        {attachment.size >= 1024 * 1024
+                          ? `${(attachment.size / (1024 * 1024)).toFixed(2)} MB`
+                          : `${(attachment.size / 1024).toFixed(1)} KB`}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                      {attachment.name}
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                      {attachment.size >= 1024 * 1024
-                        ? `${(attachment.size / (1024 * 1024)).toFixed(2)} MB`
-                        : `${(attachment.size / 1024).toFixed(1)} KB`}
-                    </p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveAttachment}
+                    disabled={status === 'submitting'}
+                    aria-label="Remove attached file"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors shrink-0 disabled:opacity-50"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRemoveAttachment}
-                  disabled={status === 'submitting'}
-                  aria-label="Remove attached file"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors shrink-0 disabled:opacity-50"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-[11px] text-amber-800 dark:text-amber-200">
+                  <Info className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>
+                    Attachment selected. Note: Email attachment delivery requires an active Web3Forms Pro subscription on the recipient inbox.
+                  </span>
+                </div>
               </div>
             )}
 
@@ -714,7 +669,7 @@ export const ContactPage: React.FC = () => {
 
             <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 pt-0.5">
               <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span>Receiving email attachments requires an active Web3Forms Pro subscription.</span>
+              <span>Receiving email attachments requires an active Web3Forms Pro subscription. Free tier accounts receive text messages.</span>
             </p>
           </div>
 
